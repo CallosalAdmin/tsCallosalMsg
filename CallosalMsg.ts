@@ -4,7 +4,7 @@
 // import { createBrotliDecompress } from "zlib";
 // import * as Presentation from './CallosalPres';
 // const Zet = require('zet');
-import * as Zet from 'https://github.com/CallosalAdmin/tsCallosalMsg/blob/main/zet2.ts';
+import * as Zet from 'https://raw.githubusercontent.com/CallosalAdmin/tsCallosalMsg/main/zet2.ts';
 
 // Setup a Date format standard
 Object.defineProperty(Date.prototype, 'YYYYMMDDHHMMSS', {

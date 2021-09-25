@@ -1,6 +1,6 @@
 // import { stringify } from "querystring";
 // import { isUndefined } from "util";
-// import config from "./config";
+import config from "./../config/manifest.js";
 // import { createBrotliDecompress } from "zlib";
 // import * as Presentation from './CallosalPres';
 // const Zet = require('zet');
@@ -111,7 +111,7 @@ export class Extension {
           case 'object':
             if (dim instanceof Date) {
               const lvDate: Date = dim;
-              lvAttString += lvDate['YYYYMMDDHHMMSS'].call();
+              lvAttString += lvDate.getFullYear()+lvDate.getMonth()+lvDate.getDate()+lvDate.getHours()+lvDate.getMinutes()+lvDate.getSeconds(); // ['YYYYMMDDHHMMSS'].call();
             } else {
               lvAttString += dim.toString();
             }
@@ -472,9 +472,7 @@ class Source extends TagSet {
     });
     return lvSource;
   } // toString
-  public getFlags = (): Map<string, boolean> => {
-    return this._flags;
-  }
+  public getFlags = (): Map<string, boolean> => this._flags
   public setFlag = (pFlag: string, pValue: boolean): void => {
     if (pFlag === 'ALL') {
       this._flags.forEach(flag => {
@@ -500,9 +498,13 @@ export class Contract {
 /*---------------------------------------------------------------------------------*/
 /*---------------------------------------------------------------------------------*/
 class clientInfo {
-  public ID: string = '';
+  public ID: string;
   public validOrigins: string[];
   // public contracts = new Map<string, Contract>();
+  constructor() {
+    this.ID = ''; 
+    this.validOrigins = new Array<string>();
+  }
 }
 /*---------------------------------------------------------------------------------*/
 /*---------------------------------------------------------------------------------*/
@@ -522,12 +524,12 @@ export class Message {
   // private _action: eAction;
   private _payloadType: ePayloadType = ePayloadType.text;
   private _payload: any;
-  private _Uqri: string = '';
+  private _Uqri: string;
   private _currMsg: string;
   private _templateIdx: number = 0; // See Constructor for default
   private _sections: string[];
-  private _contract: Contract;
-  private _clientInfo: clientInfo;
+  private _contract: Contract|undefined;
+  private _clientInfo: clientInfo|undefined;
 
   // ###############################
   // ## Generic Message structure ##
@@ -560,6 +562,11 @@ export class Message {
   // CONSTRUCTOR
   constructor() {
     this._currMsg = '';
+    this._destination = '';
+    this._startTS = new Date(0);
+    this._endTS = new Date(0);
+    this._Uqri = '';
+    this._sections = new Array<string>();
     // this._source = new TagSet();
     // Set startup default format
     this.setTemplate(0);
@@ -572,6 +579,9 @@ export class Message {
         let bFound = false;
         this._clientInfo = new clientInfo();
         this._clientInfo.ID = pClient;
+        // temp DENO remove
+        bFound = true;
+        /*
         config.validClients.forEach(LvClient => {
           if (LvClient.client === pClient) {
             bFound = true;
@@ -579,6 +589,7 @@ export class Message {
             return;
           }
         });
+        // end of temp remove */
         if (!bFound) {
           throw new Error(`Client: "${pClient}" has not been authorized`);
         }
@@ -679,29 +690,29 @@ export class Message {
           this.setDestination(<string>ltAtoms[0]);
           break;
         case 'Tags':
-          const lvTagAttribs = { "name": null, "extension": { "id": null, "value": null } };
-          ltAtoms.forEach(lvAtom => {
-            let lvArr = lvAtom.split(eMsgSeparators.tagExtStart);
-            if (lvArr.length >= 1) {
-              lvTagAttribs.name = lvArr[0];
-            }
-            if (lvArr.length >= 2) {
-              lvArr = lvArr[1].split(eMsgSeparators.tagExtEnd);
+          {
+            const lvTagAttribs = { "name": '', "extension": { "id": '', "value": '' } };
+            ltAtoms.forEach(lvAtom => {
+              let lvArr = lvAtom.split(eMsgSeparators.tagExtStart);
               if (lvArr.length >= 1) {
-                lvTagAttribs.extension.id = lvArr[0];
-                lvTagAttribs.extension.value = lvArr[1];
+                lvTagAttribs.name = lvArr[0];
               }
-            }
-            const lvTag = new Tag(lvTagAttribs.name, lvTagAttribs.extension.id, lvTagAttribs.extension.value);
-            this.tags.setTag(lvTag);
-          });
+              if (lvArr.length >= 2) {
+                lvArr = lvArr[1].split(eMsgSeparators.tagExtEnd);
+                if (lvArr.length >= 1) {
+                  lvTagAttribs.extension.id = lvArr[0];
+                  lvTagAttribs.extension.value = lvArr[1];
+                }
+              }
+              const lvTag = new Tag(lvTagAttribs.name, lvTagAttribs.extension.id, lvTagAttribs.extension.value);
+              this.tags.setTag(lvTag);
+            });
+          }
           break;
         case 'Uqri':
           break;
         case 'PType':
           // this.setP(ltAtoms[0]);
-          break;
-        case 'Destination':
           break;
         case 'Payload':
           this.setPayload(ltAtoms[0]);
@@ -709,7 +720,7 @@ export class Message {
       }
     }
     // Validate this message
-    let lvOrigin = this.getSource().getOrigin();
+    const lvOrigin = this.getSource().getOrigin();
     // if (lvOrigin !== '' && this._clientInfo) {
     if (lvOrigin !== '') {
       this._contract = Message.existingContracts.get(lvOrigin);
@@ -724,6 +735,7 @@ export class Message {
         // this._clientInfo.contracts.set(lvOrigin, this._contract);
         Message.existingContracts.set(lvOrigin, this._contract);
       } else {
+        // no contract?
       }
     }
   }
@@ -788,7 +800,7 @@ export class Message {
   //----------------------------------------------------------------------------
   // IS FIND
   public isFind = (pValue?: boolean): boolean => {
-    const lvCurrVal = this._source.getFlags()['Find'];
+    const lvCurrVal = this._source.getFlags().get('Find');
     if (pValue === null || typeof (pValue) === 'undefined') {
       // Evaluate
       if (lvCurrVal === true) {
@@ -818,7 +830,7 @@ export class Message {
   //----------------------------------------------------------------------------
   // Is GET
   public isGet = (pValue?: boolean): boolean => {
-    const lvCurrVal = this._source.getFlags()['Find'];
+    const lvCurrVal = this._source.getFlags().get('Find');
     if (pValue === null || typeof (pValue) === 'undefined') {
       // Evaluate
       if (lvCurrVal === true) {
@@ -849,7 +861,7 @@ export class Message {
   // Is Query
   public isQuery = (pValue?: boolean): boolean => {
     // if (!this._source) this._source = new Source();
-    const lvCurrVal = this._source.getFlags()['Query'];
+    const lvCurrVal = this._source.getFlags().get('Query');
     if (pValue === null || typeof (pValue) === 'undefined') {
       // Evaluate
       if (lvCurrVal === true) {
@@ -879,7 +891,7 @@ export class Message {
   //----------------------------------------------------------------------------
   // Is Push
   public isPush = (pValue?: boolean): boolean => {
-    const lvCurrVal = this._source.getFlags()['Push'];
+    const lvCurrVal = this._source.getFlags().get('Push');
     if (pValue === null || typeof (pValue) === 'undefined') {
       // Evaluate
       if (lvCurrVal === true) {
